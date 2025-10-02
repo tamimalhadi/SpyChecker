@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SpyChecker — Courier Analytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --cyan:#00f0ef;
+      --vio:#8a2be2;
+      --glass:rgba(0,20,40,0.7);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:'Rajdhani','Orbitron',sans-serif;
+      background:#000814;
+      color:#fff;
+    }
+    .container{max-width:1200px;margin:0 auto;padding:16px;text-align:center}
+
+    .hero{padding:24px 12px;text-align:center}
+    .hero h1{margin:0;font-size:26px;font-family:'Orbitron';}
+    .hero p{margin:8px 0 0;font-size:14px;color:#aaa}
+
+    .card{margin:20px auto;display:flex;gap:8px;align-items:center;background:var(--glass);border-radius:12px;padding:8px;max-width:500px}
+    .input{flex:1;position:relative}
+    .input input{width:100%;padding:10px 10px 10px 38px;border-radius:8px;background:#000;color:#fff;border:1px solid rgba(0,255,255,0.2)}
+    .input .icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:var(--cyan)}
+    .btn{background:linear-gradient(90deg,var(--cyan),var(--vio));color:#000;font-weight:700;padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
+
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px;text-align:left}
+    @media(max-width:768px){.grid{grid-template-columns:1fr}}
+
+    .panel{background:rgba(255,255,255,0.03);border-radius:12px;padding:12px}
+
+    .courierList{display:grid;grid-template-columns:1fr;gap:10px}
+    .courier{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px}
+    .cLogo{width:44px;height:44px;border-radius:8px;flex-shrink:0;overflow:hidden;background:#000}
+    .cLogo img{width:100%;height:100%;object-fit:contain}
+    .cName{font-weight:700;color:var(--cyan)}
+    .cMeta{font-size:12px;color:#ccc}
+    .statusTag{padding:2px 6px;font-size:12px;border-radius:6px;font-weight:600;margin-left:auto}
+    .ok{background:rgba(0,255,0,0.1);color:#6f6}
+    .err{background:rgba(255,0,0,0.1);color:#f99}
+
+    .loader{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99;justify-content:center;align-items:center}
+    .loader svg{width:64px;height:64px;stroke:var(--cyan);animation:spin 1s linear infinite}
+    @keyframes spin{100%{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div class="loader" id="loader"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M4 12a8 8 0 0 1 8-8"/></svg></div>
+
+  <div class="container">
+    <div class="hero">
+      <h1>SpyChecker</h1>
+      <p>বাংলাদেশের প্রথম এবং একমাত্র ফ্রি ফ্রড চেকার</p>
+    </div>
+
+    <div class="card">
+      <div class="input">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2 4.11V2h3a2 2 0 0 1 2 1.72c.12.89.42 1.74.89 2.5l1.45 2.12c.38.56.26 1.35-.28 1.78l-1.47 1.06a12.84 12.84 0 0 0 6 6l1.27-1.27c.43-.43 1.22-.66 1.78-.28l2.12 1.45c.76.47 1.61.77 2.5.89A2 2 0 0 1 22 16.92z"/></svg></div>
+        <input id="phoneInput" type="tel" placeholder="Enter phone number" maxlength="11">
+      </div>
+      <button class="btn" onclick="searchPhone()">Analyze</button>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h3 style="margin-top:0">Courier Health</h3>
+        <div class="courierList" id="courierList"></div>
+      </div>
+      <div class="panel">
+        <h3 style="margin-top:0">Analytics</h3>
+        <canvas id="summaryChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script>
+    const API_KEY = 'fs_live_35ec_bb367dd9-da72-4cbe-a71d-7ce2ea1c5e32_6c32be6f123012db';
+    const API_URL = 'https://fraudspy.com.bd/api/v1/search';
+    let chart;
+
+    function toggleLoader(show){document.getElementById('loader').style.display=show?'flex':'none'}
+
+    async function searchPhone(){
+      const phone=document.getElementById('phoneInput').value.trim();
+      if(!/^01\d{9}$/.test(phone)){alert('Invalid number');return}
+      toggleLoader(true);
+      try{
+        const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},body:JSON.stringify({phone})});
+        const data=await res.json();
+        renderData(data);
+      }catch(e){alert('Error');}
+      toggleLoader(false);
+    }
+
+    function renderData(data){
+      const couriers=data.couriers||{};
+      const courierList=document.getElementById('courierList');
+      courierList.innerHTML='';
+      let totalDeliveries=0, totalReturned=0, totalCanceled=0;
+
+      for(const [key,c] of Object.entries(couriers)){
+        const total=c.total||0;
+        const succ=c.successful||0;
+        const ret=c.returned||0;
+        const canc=c.canceled||0;
+        totalDeliveries+=succ; totalReturned+=ret; totalCanceled+=canc;
+
+        const div=document.createElement('div');div.className='courier';
+        const logo=document.createElement('div');logo.className='cLogo';
+        const img=document.createElement('img');img.src=`assets/logos/${key}.png`;img.onerror=()=>{img.style.display='none'};
+        logo.appendChild(img);
+        const info=document.createElement('div');info.innerHTML=`<div class='cName'>${key}</div><div class='cMeta'>${succ} delivered · ${ret} returned · ${canc} canceled</div>`;
+        const status=document.createElement('div');status.className='statusTag '+(c.ok?'ok':'err');status.textContent=c.ok?'ACTIVE':'ERROR';
+        div.appendChild(logo);div.appendChild(info);div.appendChild(status);
+        courierList.appendChild(div);
+      }
+      renderChart(totalDeliveries,totalReturned,totalCanceled);
+    }
+
+    function renderChart(delivered,returned,canceled){
+      const ctx=document.getElementById('summaryChart').getContext('2d');
+      if(chart)chart.destroy();
+      chart=new Chart(ctx,{type:'doughnut',data:{labels:['Delivered','Returned','Canceled'],datasets:[{data:[delivered,returned,canceled],backgroundColor:['rgba(0,240,239,0.7)','rgba(255,206,86,0.7)','rgba(255,99,132,0.7)']} ]},options:{responsive:true,plugins:{legend:{labels:{color:'#fff'}}}}});
+    }
+  </script>
+</body>
+</html>
